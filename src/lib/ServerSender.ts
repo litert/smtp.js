@@ -20,6 +20,14 @@ class Connection {
         private readonly _fromHost: string
     ) {}
 
+    public close(): void {
+
+        if (this._socket) {
+
+            this._socket.end();
+        }
+    }
+
     public async connect(): Promise<void> {
 
         if (this._connectPromise) {
@@ -64,7 +72,17 @@ class Connection {
 
             })
             .on("data", (data: Buffer) => this._writeBuffer(data.toString()))
-            .on("close", () => delete this._socket);
+            .on("close", () => {
+
+                for (const ret of this._waiters) {
+
+                    ret.reject(new E.E_CONN_LOST());
+                }
+
+                this._waiters = [];
+
+                delete this._socket;
+            });
         }));
 
         await this.send(`HELO ${this._fromHost}`);
@@ -192,7 +210,7 @@ class ServerSender implements C.IServerSender {
 
     public constructor(
         private _domains: string[],
-        private _dnsTTL: number = 3600
+        private _dnsTTL: number = 600000
     ) {
 
         this._domains = this._domains.map((v) => v.toLowerCase().trim());
@@ -214,7 +232,7 @@ class ServerSender implements C.IServerSender {
             address: v.address.toLowerCase().trim()
         }));
 
-        info.cc = info.cc.map((v) => ({
+        info.cc = (info.cc || []).map((v) => ({
             name: v.name,
             address: v.address.toLowerCase().trim()
         }));
@@ -299,6 +317,16 @@ class ServerSender implements C.IServerSender {
         }
     }
 
+    public close(): void {
+
+        for (let k in this._pool) {
+
+            this._pool[k].close();
+        }
+
+        this._pool = {};
+    }
+
     private _extractHostname(addr: string): string {
 
         return addr.slice(addr.indexOf("@") + 1);
@@ -370,7 +398,10 @@ class ServerSender implements C.IServerSender {
     }
 }
 
-export function createServerSender(domains: string[]): C.IServerSender {
+export function createServerSender(opts: C.ISenderOptions): C.IServerSender {
 
-    return new ServerSender(domains);
+    return new ServerSender(
+        opts.domains,
+        opts.dnsCache
+    );
 }

@@ -2,9 +2,10 @@ import * as SMTP from "../lib";
 
 (async () => {
 
-    const sender = SMTP.createServerSender([
-        "example.com"
-    ]);
+    const sender = SMTP.createServerSender({
+
+        "domains": ["example.com"]
+    });
 
     await sender.send({
         from: {
