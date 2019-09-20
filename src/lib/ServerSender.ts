@@ -1,3 +1,21 @@
+/**
+ * Copyright 2018 Angus.Fenying
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *   https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+// tslint:disable: no-string-literal
+
 import * as $DNS from "dns";
 import * as $Net from "net";
 import * as C from "./Common";
@@ -208,12 +226,21 @@ class ServerSender implements C.IServerSender {
 
     private _dnsCache: Record<string, IDNSRecord> = {};
 
+    private _domains: Record<string, C.IDomainOptions> = {};
+
     public constructor(
-        private _domains: string[],
-        private _dnsTTL: number = 600000
+        _domains: C.IDomainOptions[],
+        private _dnsTTL: number = 600000,
+        private _dkimSigner?: C.TDKIMSigner
     ) {
 
-        this._domains = this._domains.map((v) => v.toLowerCase().trim());
+        for (let v of _domains) {
+
+            this._domains[v.domain.toLowerCase()] = {
+                "domain": v.domain.toLowerCase(),
+                "dkim": v.dkim
+            };
+        }
     }
 
     public async send(info: C.IMailOptions): Promise<void> {
@@ -222,7 +249,7 @@ class ServerSender implements C.IServerSender {
             info.from.address = info.from.address.toLowerCase().trim()
         );
 
-        if (!this._domains.includes(usedDomain)) {
+        if (!this._domains[usedDomain]) {
 
             throw new E.E_USER_NOT_FOUND();
         }
@@ -254,40 +281,105 @@ class ServerSender implements C.IServerSender {
             recipients[hostname].push(p);
         }
 
-        const MAIL_DATA = [
-            "MIME-Version: 1.0",
-            `Date: ${new Date().toUTCString()}`,
-            `From: ${this._wrapRecipient(info.from)}`,
-            `Delivered-To: ${info.to.map((v) => this._wrapRecipient(v)).join(", ")}`,
-            `To: ${info.to.map((v) => this._wrapRecipient(v)).join(", ")}`,
-            ...((): string[] => {
+        // const MAIL_DATA = [
+        //     "MIME-Version: 1.0",
+        //     `Date: ${new Date().toUTCString()}`,
+        //     `From: ${this._wrapRecipient(info.from)}`,
+        //     `Delivered-To: ${info.to.map((v) => this._wrapRecipient(v)).join(", ")}`,
+        //     `To: ${info.to.map((v) => this._wrapRecipient(v)).join(", ")}`,
+        //     ...((): string[] => {
 
-                const ret: string[] = [];
+        //         const ret: string[] = [];
 
-                if (info.uuid) {
+        //         if (info.uuid) {
 
-                    ret.push(`Message-Id: <${info.uuid}@${usedDomain}>`);
-                }
+        //             ret.push(`Message-Id: <${info.uuid}@${usedDomain}>`);
+        //         }
 
-                if (info.cc.length) {
+        //         if (info.cc.length) {
 
-                    ret.push(`Cc: ${info.cc.map((v) => this._wrapRecipient(v)).join(", ")}`);
-                }
+        //             ret.push(`Cc: ${info.cc.map((v) => this._wrapRecipient(v)).join(", ")}`);
+        //         }
 
-                if (info.replyTo) {
+        //         if (info.replyTo) {
 
-                    ret.push(`Reply-To: ${this._wrapRecipient(info.replyTo)}`);
-                }
+        //             ret.push(`Reply-To: ${this._wrapRecipient(info.replyTo)}`);
+        //         }
 
-                return ret;
-            })(),
-            `Subject: ${this._encodeUTF8(info.subject)}`,
-            `Content-Type: ${this._getContentType(info.format)}; charset=UTF-8`,
-            `Content-Transfer-Encoding: base64`,
-            "",
-            Buffer.from(info.body).toString("base64"),
-            "."
-        ].join(C.CRLF);
+        //         return ret;
+        //     })(),
+        //     `Subject: ${this._encodeUTF8(info.subject)}`,
+        //     `Content-Type: ${this._getContentType(info.format)}; charset=UTF-8`,
+        //     `Content-Transfer-Encoding: base64`,
+        //     "",
+        //     Buffer.from(info.body).toString("base64"),
+        //     "."
+        // ].join(C.CRLF);
+
+        const MAIL_DATA: string[] = [];
+        const MAIL_HEADERS: Record<string, string> = {};
+        const MAIL_BODY = Buffer.from(info.body).toString("base64");
+
+        MAIL_HEADERS["MIME-Version"] = "1.0";
+        MAIL_HEADERS["Date"] = new Date().toUTCString();
+        MAIL_HEADERS["From"] = this._wrapRecipient(info.from);
+        MAIL_HEADERS["To"] = MAIL_HEADERS["Delivered-To"] = info.to.map(
+            (v) => this._wrapRecipient(v)
+        ).join(", ");
+        MAIL_HEADERS["From"] = this._wrapRecipient(info.from);
+
+        if (info.uuid) {
+
+            MAIL_HEADERS["Message-Id"] = `<${info.uuid}@${usedDomain}>`;
+        }
+
+        if (info.cc.length) {
+
+            MAIL_HEADERS["Cc"] = info.cc.map((v) => this._wrapRecipient(v)).join(", ");
+        }
+
+        if (info.replyTo) {
+
+            MAIL_HEADERS["Reply-To"] = this._wrapRecipient(info.replyTo);
+        }
+
+        MAIL_HEADERS["Subject"] = this._encodeUTF8(info.subject);
+        MAIL_HEADERS["Content-Type"] = `${this._getContentType(info.format)}; charset=UTF-8`;
+        MAIL_HEADERS["Content-Transfer-Encoding"] = "base64";
+
+        if (info.dkim) {
+
+            if (!this._dkimSigner) {
+
+                throw new E.E_DKIM_NOT_READY();
+            }
+
+            const domain = this._domains[usedDomain];
+
+            if (!domain.dkim) {
+
+                throw new E.E_DKIM_NOT_ALLOWED();
+            }
+
+            const [dkimField, dkimValue] = this._dkimSigner(
+                MAIL_HEADERS,
+                MAIL_BODY,
+                domain.dkim.selector,
+                usedDomain,
+                domain.dkim.privateKey
+            );
+
+            MAIL_HEADERS[dkimField] = dkimValue;
+        }
+
+        for (const f in MAIL_HEADERS) {
+
+            MAIL_DATA.push(`${f}: ${MAIL_HEADERS[f]}`);
+        }
+
+        MAIL_DATA.push("");
+        MAIL_DATA.push(MAIL_BODY);
+        MAIL_DATA.push(".");
 
         for (const hostname in recipients) {
 
@@ -313,7 +405,7 @@ class ServerSender implements C.IServerSender {
 
             await conn.send(`DATA`);
 
-            await conn.send(MAIL_DATA);
+            await conn.send(MAIL_DATA.join(C.CRLF));
         }
     }
 
@@ -401,7 +493,16 @@ class ServerSender implements C.IServerSender {
 export function createServerSender(opts: C.ISenderOptions): C.IServerSender {
 
     return new ServerSender(
-        opts.domains,
-        opts.dnsCache
+        opts.domains.map((v) => {
+
+            if (typeof v === "string") {
+
+                return { domain: v };
+            }
+
+            return v;
+        }),
+        opts.dnsCache,
+        opts.dkimSigner
     );
 }

@@ -1,3 +1,19 @@
+/**
+ * Copyright 2018 Angus.Fenying
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *   https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 // tslint:disable: max-line-length
 import * as Core from "@litert/core";
 
@@ -376,14 +392,26 @@ export const E_TRANS_FAILED = ErrorHub.define<ISMTPErrorMetadata>(
     }
 );
 
-export const E_DKIM_INVALID_CANO = ErrorHub.define<ISMTPErrorMetadata>(
+export const E_DKIM_NOT_READY = ErrorHub.define<ISMTPErrorMetadata>(
     1001,
-    "E_DKIM_INVALID_CANO",
-    "The canonicalization for DKIM is invalid.",
+    "E_DKIM_NOT_READY",
+    "No DKIM signer for the mail sender.",
     {
         "details": {
             "code": "unknwon",
-            "message": "The canonicalization for DKIM is invalid."
+            "message": "The sender is not setup with a DKIM signer."
+        }
+    }
+);
+
+export const E_DKIM_NOT_ALLOWED = ErrorHub.define<ISMTPErrorMetadata>(
+    1002,
+    "E_DKIM_NOT_ALLOWED",
+    "No DKIM configuration for this domain.",
+    {
+        "details": {
+            "code": "unknwon",
+            "message": "The domain is not setup with DKIM configurations."
         }
     }
 );
