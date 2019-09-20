@@ -403,15 +403,3 @@ export const E_DKIM_NOT_READY = ErrorHub.define<ISMTPErrorMetadata>(
         }
     }
 );
-
-export const E_DKIM_NOT_ALLOWED = ErrorHub.define<ISMTPErrorMetadata>(
-    1002,
-    "E_DKIM_NOT_ALLOWED",
-    "No DKIM configuration for this domain.",
-    {
-        "details": {
-            "code": "unknwon",
-            "message": "The domain is not setup with DKIM configurations."
-        }
-    }
-);

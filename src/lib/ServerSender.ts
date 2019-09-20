@@ -339,15 +339,17 @@ class ServerSender implements C.IServerSender {
 
         const MAIL_DATA: string[] = [];
         const MAIL_HEADERS: Record<string, string> = {};
-        const MAIL_BODY = Buffer.from(info.body).toString("base64");
+        const MAIL_BODY = Buffer.from(info.body)
+                        .toString("base64")
+                        .replace(/(.{78})(?!$)/g, "$1" + C.CRLF);
 
         MAIL_HEADERS["MIME-Version"] = "1.0";
         MAIL_HEADERS["Date"] = new Date().toUTCString();
-        MAIL_HEADERS["From"] = this._wrapRecipient(info.from);
+        MAIL_HEADERS["From"] = this._wrapPerson(info.from);
         MAIL_HEADERS["To"] = MAIL_HEADERS["Delivered-To"] = info.to.map(
-            (v) => this._wrapRecipient(v)
+            (v) => this._wrapPerson(v)
         ).join(", ");
-        MAIL_HEADERS["From"] = this._wrapRecipient(info.from);
+        MAIL_HEADERS["From"] = this._wrapPerson(info.from);
 
         if (info.uuid) {
 
@@ -356,30 +358,28 @@ class ServerSender implements C.IServerSender {
 
         if (info.cc.length) {
 
-            MAIL_HEADERS["Cc"] = info.cc.map((v) => this._wrapRecipient(v)).join(", ");
+            MAIL_HEADERS["Cc"] = info.cc.map((v) => this._wrapPerson(v)).join(", ");
         }
 
         if (info.replyTo) {
 
-            MAIL_HEADERS["Reply-To"] = this._wrapRecipient(info.replyTo);
+            MAIL_HEADERS["Reply-To"] = this._wrapPerson(info.replyTo);
         }
 
         MAIL_HEADERS["Subject"] = this._encodeUTF8(info.subject);
         MAIL_HEADERS["Content-Type"] = `${this._getContentType(info.format)}; charset=UTF-8`;
         MAIL_HEADERS["Content-Transfer-Encoding"] = "base64";
 
-        if (info.dkim) {
+        const domain = this._domains[usedDomain];
+
+        /**
+         * If domain enabled DKIM, use DKIM by default.
+         */
+        if (domain.dkim && info.dkim !== false) {
 
             if (!this._dkimSigner) {
 
                 throw new E.E_DKIM_NOT_READY();
-            }
-
-            const domain = this._domains[usedDomain];
-
-            if (!domain.dkim) {
-
-                throw new E.E_DKIM_NOT_ALLOWED();
             }
 
             const [dkimField, dkimValue] = this._dkimSigner(
@@ -455,14 +455,19 @@ class ServerSender implements C.IServerSender {
         return `=?UTF-8?B?${Buffer.from(text).toString("base64")}?=`;
     }
 
-    private _wrapRecipient(v: C.IPerson) {
+    /**
+     * Wrap the recipient/sender info into UTF-8 encoding if necessary.
+     *
+     * @param p The person info.
+     */
+    private _wrapPerson(p: C.IPerson) {
 
-        if (/^[-\. \w]+$/.test(v.name)) {
+        if (/^[-\. \w]+$/.test(p.name)) {
 
-            return `"${v.name}" <${v.address}>`;
+            return `"${p.name}" <${p.address}>`;
         }
 
-        return `${this._encodeUTF8(v.name)} <${v.address}>`;
+        return `${this._encodeUTF8(p.name)} <${p.address}>`;
     }
 
     /**

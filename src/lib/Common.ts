@@ -16,8 +16,14 @@
 
 export interface IPerson {
 
+    /**
+     * The display name of the person.
+     */
     "name": string;
 
+    /**
+     * The mailbox address of the person.
+     */
     "address": string;
 }
 
@@ -71,6 +77,13 @@ export interface IMailOptions {
      */
     "uuid"?: string;
 
+    /**
+     * Set to `false` to disable the DKIM when the domain enabled DKIM.
+     *
+     * If domain doesn't enable DKIM, this option will be ignored.
+     *
+     * @default true
+     */
     "dkim"?: boolean;
 }
 
@@ -120,12 +133,24 @@ export type TDKIMSigner = (
 
 export interface IDomainOptions {
 
+    /**
+     * The domain. If not lowercase, it will be transform into lowercase.
+     */
     domain: string;
 
+    /**
+     * The DKIM settings. If omittedc, the DKIM will not be used for this domain.
+     */
     dkim?: {
 
+        /**
+         * The SELECTOR used for DKIM signature.
+         */
         selector: string;
 
+        /**
+         * The private RSA key used for DKIM signature.
+         */
         privateKey: string | Buffer;
     };
 }
@@ -145,7 +170,9 @@ export interface ISenderOptions {
     dnsCache?: number;
 
     /**
-     * The DKIM signer callback for the sender.
+     * The DKIM signer fnction for the sender.
+     *
+     * If omitted, DKIM will not work.
      */
     dkimSigner?: TDKIMSigner;
 }
