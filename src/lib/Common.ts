@@ -87,6 +87,27 @@ export interface IServerSender {
      * Close all connections.
      */
     close(): void;
+
+    /**
+     * Add a new domain. If the domain already exists, the previous will be overwritten.
+     *
+     * @param domain The domain info.
+     */
+    addDomain(domain: string | IDomainOptions): this;
+
+    /**
+     * Remove a existing domain.
+     *
+     * @param domain The domain.
+     */
+    removeDomain(domain: string): this;
+
+    /**
+     * Check if a domain exists.
+     *
+     * @param domain The domain.
+     */
+    existDomain(domain: string): boolean;
 }
 
 export type TDKIMSigner = (
@@ -123,6 +144,9 @@ export interface ISenderOptions {
      */
     dnsCache?: number;
 
+    /**
+     * The DKIM signer callback for the sender.
+     */
     dkimSigner?: TDKIMSigner;
 }
 

@@ -229,18 +229,39 @@ class ServerSender implements C.IServerSender {
     private _domains: Record<string, C.IDomainOptions> = {};
 
     public constructor(
-        _domains: C.IDomainOptions[],
+        domains: Array<C.IDomainOptions | string>,
         private _dnsTTL: number = 600000,
         private _dkimSigner?: C.TDKIMSigner
     ) {
 
-        for (let v of _domains) {
+        domains.forEach((v) => this.addDomain(v));
+    }
 
-            this._domains[v.domain.toLowerCase()] = {
-                "domain": v.domain.toLowerCase(),
-                "dkim": v.dkim
-            };
+    public addDomain(domain: string | C.IDomainOptions): this {
+
+        if (typeof domain === "string") {
+
+            domain = { domain };
         }
+
+        this._domains[domain.domain.toLowerCase()] = {
+            "domain": domain.domain.toLowerCase(),
+            "dkim": domain.dkim
+        };
+
+        return this;
+    }
+
+    public removeDomain(domain: string): this {
+
+        delete this._domains[domain.toLowerCase()];
+
+        return this;
+    }
+
+    public existDomain(domain: string): boolean {
+
+        return !!this._domains[domain.toLowerCase()];
     }
 
     public async send(info: C.IMailOptions): Promise<void> {
@@ -493,15 +514,7 @@ class ServerSender implements C.IServerSender {
 export function createServerSender(opts: C.ISenderOptions): C.IServerSender {
 
     return new ServerSender(
-        opts.domains.map((v) => {
-
-            if (typeof v === "string") {
-
-                return { domain: v };
-            }
-
-            return v;
-        }),
+        opts.domains,
         opts.dnsCache,
         opts.dkimSigner
     );
