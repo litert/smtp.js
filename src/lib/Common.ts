@@ -178,3 +178,18 @@ export interface ISenderOptions {
 }
 
 export const CRLF = "\r\n";
+
+export interface IHeaderBuilder {
+
+    /**
+     * Append a piece of text.
+     *
+     * @param piece The piece of text to be appended.
+     */
+    append(piece: string): this;
+
+    /**
+     * Build the header line.
+     */
+    toString(): string;
+}
