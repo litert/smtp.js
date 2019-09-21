@@ -372,6 +372,11 @@ class ServerSender implements C.IServerSender {
 
         const domain = this._domains[usedDomain];
 
+        for (const f in MAIL_HEADERS) {
+
+            MAIL_DATA.push(`${f}: ${MAIL_HEADERS[f]}`);
+        }
+
         /**
          * If domain enabled DKIM, use DKIM by default.
          */
@@ -382,20 +387,17 @@ class ServerSender implements C.IServerSender {
                 throw new E.E_DKIM_NOT_READY();
             }
 
-            const [dkimField, dkimValue] = this._dkimSigner(
-                MAIL_HEADERS,
+            const dkimHeader = this._dkimSigner(
+                MAIL_DATA,
                 MAIL_BODY,
+                domain.dkim.canonicalization || C.DEFAULT_CANONICALIZATION,
                 domain.dkim.selector,
                 usedDomain,
-                domain.dkim.privateKey
+                domain.dkim.privateKey,
+                domain.dkim.headers || C.DEFAULT_DKIM_SIGN_HEADERS
             );
 
-            MAIL_HEADERS[dkimField] = dkimValue;
-        }
-
-        for (const f in MAIL_HEADERS) {
-
-            MAIL_DATA.push(`${f}: ${MAIL_HEADERS[f]}`);
+            MAIL_DATA.push(dkimHeader);
         }
 
         MAIL_DATA.push("");

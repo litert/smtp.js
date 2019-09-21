@@ -124,12 +124,14 @@ export interface IServerSender {
 }
 
 export type TDKIMSigner = (
-    headers: Record<string, string>,
+    headers: string[],
     body: string,
+    canonicalization: string,
     selector: string,
     domain: string,
-    privateKey: string | Buffer
-) => [string, string];
+    privateKey: string | Buffer,
+    headersToSigned?: string[]
+) => string;
 
 export interface IDomainOptions {
 
@@ -152,6 +154,20 @@ export interface IDomainOptions {
          * The private RSA key used for DKIM signature.
          */
         privateKey: string | Buffer;
+
+        /**
+         * The canonicalization algorithm to be used.
+         *
+         * @default "relaxed/relaxed"
+         */
+        canonicalization?: string;
+
+        /**
+         * The headers to be signed in DKIM.
+         *
+         * @default ["from", "to", "cc", "subject", "message-id"]
+         */
+        headers?: string[];
     };
 }
 
@@ -193,3 +209,10 @@ export interface IHeaderBuilder {
      */
     toString(): string;
 }
+
+export const DEFAULT_CANONICALIZATION = "relaxed/relaxed";
+
+export const DEFAULT_DKIM_SIGN_HEADERS: string[] = [
+    "from", "to", "cc", "reply-to",
+    "date", "subject", "message-id", "content-type"
+];
